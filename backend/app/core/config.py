@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    database_url: str = (
+        "postgresql+psycopg2://postgres:postgres@localhost:5432/employee_management"
+    )
+
+    secret_key: str = "your-secret-key-change-in-production"
+    access_token_expire_minutes: int = 30
+    algorithm: str = "HS256"
+
     cors_origins: str = "http://localhost:5173"
 
     @computed_field  # type: ignore[prop-decorator]
@@ -38,6 +46,20 @@ class Settings(BaseSettings):
             for origin in self.cors_origins.split(",")
             if origin.strip()
         ]
+
+    @model_validator(mode="after")
+    def validate_production_secret_key(self) -> "Settings":
+        """Production ortamında varsayılan veya zayıf SECRET_KEY kullanımını engeller."""
+        if self.app_env == "production":
+            if (
+                self.secret_key == "your-secret-key-change-in-production"
+                or len(self.secret_key) < 32
+            ):
+                raise ValueError(
+                    "Production ortamında en az 32 karakterlik güvenli bir "
+                    "SECRET_KEY tanımlanmalıdır."
+                )
+        return self
 
 
 @lru_cache
